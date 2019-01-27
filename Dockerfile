@@ -1,40 +1,42 @@
-FROM php:7.3-apache
-ENV DEBIAN_FRONTEND noninteractive
-RUN a2enmod rewrite
-RUN apt-get update && apt-get install -y libpq-dev unzip libaio1 libfreetype6-dev \
-    libjpeg62-turbo-dev libmcrypt-dev zlib1g-dev zip libbz2-dev libicu-dev g++
-RUN pecl install mcrypt-1.0.2
-RUN docker-php-ext-enable mcrypt
-RUN docker-php-ext-install gd mysqli pgsql mbstring opcache bz2 intl
+FROM alpine:3.8
 
-# RUN apt-get install -y zlib-dev
-# RUN docker-php-ext-configure zip --with-libzip
-# RUN docker-php-ext-install zip
+RUN apk --update add --no-cache \
+        nginx \
+        curl \
+        supervisor \
+        php7 \
+        php7-ctype \
+        php7-curl \
+        php7-dom \
+        php7-fpm \
+        php7-json \
+        php7-mbstring \
+        php7-mcrypt \
+        php7-opcache \
+        php7-openssl \
+        php7-pdo \
+        php7-pdo_mysql \
+        php7-pdo_pgsql \
+        php7-pdo_sqlite \
+        php7-phar \
+        php7-session \
+        php7-tokenizer \
+        php7-xml
 
-RUN echo 'PassEnv ENV' > /etc/apache2/conf-enabled/expose-env.conf
+RUN rm -Rf /var/cache/apk/*
 
-RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
-RUN mkdir -p /var/lib/php/sesion
-RUN echo 'session.save_path = "5;/var/lib/php/sesion"' >> /usr/local/etc/php/php.ini
+# RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/bin --filename=composer
 
-# # OCI8
-ADD oracle/instantclient-basic-linux.x64-12.2.0.1.0.zip /tmp/
-ADD oracle/instantclient-sdk-linux.x64-12.2.0.1.0.zip /tmp/
+COPY nginx.conf /etc/nginx/nginx.conf
 
-RUN unzip /tmp/instantclient-basic-linux.x64-12.2.0.1.0.zip -d /usr/local/ && \
-unzip /tmp/instantclient-sdk-linux.x64-12.2.0.1.0.zip -d /usr/local/
+COPY supervisord.conf /etc/supervisord.conf
 
-RUN ln -s /usr/local/instantclient_12_2 /usr/local/instantclient && \
-ln -s /usr/local/instantclient/libclntsh.so.12.1 /usr/local/instantclient/libclntsh.so
+RUN mkdir -p /app
 
-ENV LD_LIBRARY_PATH /usr/local/instantclient
-ENV TNS_ADMIN /usr/local/instantclient
-ENV ORACLE_BASE /usr/local/instantclient
-ENV ORACLE_HOME /usr/local/instantclient
+WORKDIR /app
 
-RUN echo 'instantclient,/usr/local/instantclient' | pecl install oci8
+RUN chmod -R 755 /app
 
-RUN docker-php-ext-configure oci8 --with-oci8=instantclient,/usr/local/instantclient \
-&& docker-php-ext-install oci8
+EXPOSE 80 443
 
-EXPOSE 80
+CMD ["supervisord", "-c", "/etc/supervisord.conf"]
